@@ -1,0 +1,7 @@
+servidor.rar
+.git-backup/
+**/.git-backup/
+node_modules/
+app/.claude/worktrees/
+servidor/importacion/*.txt
+servidor/test.txt
