@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
+import * as Updates from 'expo-updates';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { StatusPill } from '../components/StatusPill';
@@ -151,6 +152,10 @@ export default function Settings() {
       </View>
 
       <Text style={styles.version}>Las MoscasStream v{Constants.expoConfig?.version ?? '1.0.0'}</Text>
+      <Text style={styles.version}>
+        Actualización: {Updates.updateId ? Updates.updateId.slice(0, 8) : 'ninguna (versión instalada)'}
+        {Updates.createdAt ? ` · ${Updates.createdAt.toLocaleString('es-CO')}` : ''}
+      </Text>
     </ScrollView>
   );
 }
