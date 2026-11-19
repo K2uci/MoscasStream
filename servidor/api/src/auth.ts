@@ -56,7 +56,7 @@ authRouter.post('/login', async (req, res) => {
   res.cookie(COOKIE, token, {
     httpOnly: true,
     sameSite: 'strict',
-    secure: false, // red local por http
+    secure: config.isProduction && config.trustProxy, // HTTPS en la nube; http en la red local
     maxAge: SESSION_HOURS * 3600_000,
   });
   res.json({ username: rows[0].username });

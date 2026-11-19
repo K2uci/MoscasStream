@@ -9,7 +9,7 @@ interface Props {
   onError: (e: unknown) => void
 }
 
-const WITH_EPISODES: MediaType[] = ['serie', 'anime', 'novela', 'documental', 'reality']
+const WITH_EPISODES: MediaType[] = ['serie', 'serie_animada', 'anime', 'novela', 'documental', 'reality']
 
 export function MediaForm({ item, onClose, onSaved, onError }: Props) {
   const [title, setTitle] = useState(item?.title ?? '')

@@ -6,12 +6,14 @@ import { authRouter, requireAuth } from './auth.js';
 import { config } from './config.js';
 import { initDb, pool } from './db.js';
 import { backfillThumbs } from './images.js';
-import { runImport } from './importacion/importador.js';
+import { storage } from './storage.js';
+import { importText, runImport } from './importacion/importador.js';
 import { adminRouter, catalogRouter } from './media.js';
 import { TmdbError, tmdbRouter } from './tmdb.js';
 
 const app = express();
 app.disable('x-powered-by');
+if (config.trustProxy) app.set('trust proxy', 1);
 app.use(compression()); // el catálogo JSON (miles de títulos) viaja comprimido con gzip
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
@@ -35,11 +37,35 @@ app.get('/api/health', async (_req, res) => {
   res.json({ ok: true });
 });
 app.use('/api/catalog', publicCors, catalogRouter);
-app.use('/uploads', publicCors, express.static(config.uploadDir, { maxAge: '30d', immutable: true }), (_req, res) => {
-  res.status(404).end();
-});
+if (storage.kind === 'local') {
+  app.use('/uploads', publicCors, express.static(config.uploadDir, { maxAge: '30d', immutable: true }), (_req, res) => {
+    res.status(404).end();
+  });
+} else {
+  // Nube sin URL pública del bucket: la API entrega las imágenes desde el bucket.
+  app.get('/uploads/:file', publicCors, async (req, res) => {
+    const file = String(req.params.file);
+    const body = /^[\w.-]+\.webp$/.test(file) ? await storage.stream(file) : null;
+    if (!body) {
+      res.status(404).end();
+      return;
+    }
+    res.set({ 'Content-Type': 'image/webp', 'Cache-Control': 'public, max-age=2592000, immutable' });
+    body.pipe(res);
+  });
+}
 app.use('/api/auth', authRouter);
 app.use('/api/admin/tmdb', requireAuth, tmdbRouter);
+// Importar un listado .txt desde el panel (sirve en la nube, donde no hay carpeta "importacion").
+app.post('/api/admin/import', requireAuth, express.text({ type: '*/*', limit: '10mb' }), (req, res) => {
+  const text = typeof req.body === 'string' ? req.body : '';
+  if (!text.trim()) {
+    res.status(400).json({ error: 'El listado está vacío' });
+    return;
+  }
+  const started = importText(text, 'panel');
+  res.status(started ? 202 : 409).json(started ? { ok: true, titles: started } : { error: 'Ya hay una importación en curso' });
+});
 app.use('/api/admin', adminRouter);
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });

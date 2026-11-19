@@ -1,0 +1,34 @@
+# Despliegue en Render: https://render.com  ->  New + -> Blueprint -> elige este repositorio.
+# La base de datos (Neon) y las imágenes (Cloudflare R2) se configuran aparte: ver servidor/DESPLIEGUE.md
+services:
+  - type: web
+    name: moscasstream
+    runtime: docker
+    dockerfilePath: ./servidor/Dockerfile
+    dockerContext: ./servidor
+    plan: starter # el plan gratis se "duerme" tras 15 min sin uso; starter ($7/mes) queda siempre encendido
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL # cadena de conexión de Neon / Supabase (con ?sslmode=require)
+        sync: false
+      - key: ADMIN_USER
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: TMDB_TOKEN
+        sync: false
+      - key: TMDB_LANGUAGE
+        value: es-ES
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_PUBLIC_URL
+        sync: false

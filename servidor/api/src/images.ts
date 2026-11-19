@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import multer from 'multer';
 import sharp from 'sharp';
-import { config } from './config.js';
+import { storage } from './storage.js';
 
 export const upload = multer({
   storage: multer.memoryStorage(),
@@ -18,44 +17,43 @@ const sizes = {
   thumb: { width: 300, height: 450, quality: 70 },
 };
 
-const filePath = (publicPath: string) => path.join(config.uploadDir, path.basename(publicPath));
+const nameOf = (publicPath: string) => path.basename(publicPath);
 
 /** "/uploads/poster-x.webp" → "/uploads/poster-x-thumb.webp" */
 export const thumbPathOf = (posterPath: string) => posterPath.replace(/\.webp$/, '-thumb.webp');
 
-async function writeVariant(input: Buffer | string, kind: keyof typeof sizes, dest: string) {
+async function writeVariant(input: Buffer, kind: keyof typeof sizes, name: string) {
   const { width, height, quality } = sizes[kind];
-  await sharp(input)
+  const out = await sharp(input)
     .rotate()
     .resize({ width, height, fit: 'cover', withoutEnlargement: true })
     .webp({ quality })
-    .toFile(dest);
+    .toBuffer();
+  await storage.write(name, out);
 }
 
 /** Recorta/reduce la imagen y la guarda como WebP. Devuelve la ruta pública ("/uploads/x.webp"). */
 export async function saveImage(buffer: Buffer, kind: 'poster' | 'backdrop'): Promise<string> {
-  await fs.mkdir(config.uploadDir, { recursive: true });
   const publicPath = `/uploads/${kind}-${randomUUID()}.webp`;
-  await writeVariant(buffer, kind, filePath(publicPath));
-  if (kind === 'poster') await writeVariant(buffer, 'thumb', filePath(thumbPathOf(publicPath)));
+  await writeVariant(buffer, kind, nameOf(publicPath));
+  if (kind === 'poster') await writeVariant(buffer, 'thumb', nameOf(thumbPathOf(publicPath)));
   return publicPath;
 }
 
 export async function deleteImage(publicPath: string | null | undefined) {
   if (!publicPath?.startsWith('/uploads/')) return;
-  await fs.rm(filePath(publicPath), { force: true });
-  await fs.rm(filePath(thumbPathOf(publicPath)), { force: true });
+  await storage.remove(nameOf(publicPath));
+  await storage.remove(nameOf(thumbPathOf(publicPath)));
 }
 
-/** Crea las miniaturas que falten (pósters subidos antes de que existieran). */
+/** Crea las miniaturas que falten (solo almacenamiento local; en la nube no se revisa en cada arranque). */
 export async function backfillThumbs(posterPaths: string[]) {
+  if (storage.kind !== 'local') return;
   let created = 0;
   for (const p of posterPaths) {
-    const thumb = filePath(thumbPathOf(p));
-    const exists = await fs.access(thumb).then(() => true, () => false);
-    if (exists) continue;
+    if (await storage.exists(nameOf(thumbPathOf(p)))) continue;
     try {
-      await writeVariant(filePath(p), 'thumb', thumb);
+      await writeVariant(await storage.read(nameOf(p)), 'thumb', nameOf(thumbPathOf(p)));
       created++;
     } catch (e) {
       console.warn(`[thumbs] no se pudo crear la miniatura de ${p}:`, (e as Error).message);

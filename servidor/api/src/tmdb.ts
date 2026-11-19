@@ -9,7 +9,7 @@ const API = 'https://api.themoviedb.org/3';
 const IMG = 'https://image.tmdb.org/t/p';
 
 export type TmdbKind = 'movie' | 'tv';
-type MediaType = 'pelicula' | 'serie' | 'anime' | 'novela' | 'documental' | 'reality';
+type MediaType = 'pelicula' | 'pelicula_animada' | 'serie' | 'serie_animada' | 'anime' | 'novela' | 'documental' | 'reality';
 
 // IDs de géneros de TMDb que usamos para sugerir la categoría.
 const GENRE = { animation: 16, documentary: 99, reality: 10764, soap: 10766 };
@@ -105,6 +105,7 @@ function suggestType(kind: TmdbKind, genreIds: number[], originalLanguage?: stri
   const japanese = originalLanguage === 'ja' || countries.includes('JP');
   if (has(GENRE.documentary)) return 'documental';
   if (has(GENRE.animation) && japanese) return 'anime';
+  if (has(GENRE.animation)) return kind === 'movie' ? 'pelicula_animada' : 'serie_animada';
   if (kind === 'movie') return 'pelicula';
   if (has(GENRE.reality)) return 'reality';
   if (has(GENRE.soap)) return 'novela';

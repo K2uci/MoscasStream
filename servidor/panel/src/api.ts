@@ -1,4 +1,4 @@
-export type MediaType = 'pelicula' | 'serie' | 'anime' | 'novela' | 'documental' | 'reality'
+export type MediaType = 'pelicula' | 'pelicula_animada' | 'serie' | 'serie_animada' | 'anime' | 'novela' | 'documental' | 'reality'
 
 export interface MediaItem {
   id: string
@@ -21,7 +21,9 @@ export interface MediaItem {
 
 export const TYPES: { value: MediaType; label: string; icon: string; tint: string }[] = [
   { value: 'pelicula', label: 'Películas', icon: '🎬', tint: '#5B8CFF' },
+  { value: 'pelicula_animada', label: 'Películas animadas', icon: '🎞️', tint: '#4FC3F7' },
   { value: 'serie', label: 'Series', icon: '📺', tint: '#22D3A6' },
+  { value: 'serie_animada', label: 'Series animadas', icon: '🧸', tint: '#F4D03F' },
   { value: 'anime', label: 'Anime', icon: '🌸', tint: '#FF7AB6' },
   { value: 'novela', label: 'Novelas', icon: '💞', tint: '#FFB020' },
   { value: 'documental', label: 'Documentales', icon: '🌍', tint: '#A78BFA' },
@@ -94,6 +96,8 @@ export const api = {
   setAvailable: (id: string, available: boolean) =>
     request<MediaItem>(`/api/admin/media/${id}/availability`, json('PATCH', { available })),
   remove: (id: string) => request<void>(`/api/admin/media/${id}`, { method: 'DELETE' }),
+  importListing: (text: string) =>
+    request<{ ok: true; titles: number }>('/api/admin/import', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: text }),
   tmdbStatus: () => request<{ enabled: boolean; language: string }>('/api/admin/tmdb/status'),
   tmdbSearch: (q: string, year?: string, language?: string) => {
     const p = new URLSearchParams({ q })

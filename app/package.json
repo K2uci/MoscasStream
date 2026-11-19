@@ -37,7 +37,10 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "assets": "tsx scripts/generate-assets.ts"
+    "assets": "tsx scripts/generate-assets.ts",
+    "update": "eas update --channel production --message",
+    "update:preview": "eas update --channel preview --message",
+    "build:apk": "eas build --platform android --profile production"
   },
   "private": true
 }

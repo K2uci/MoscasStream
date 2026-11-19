@@ -149,6 +149,25 @@ export function Dashboard({ user, onLogout, onUnauthorized }: Props) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+          <label className="btn ghost" title="Sube un listado .txt: los títulos se buscan en TMDb y se agregan solos">
+            ⬆ Importar listado
+            <input
+              type="file"
+              accept=".txt,text/plain"
+              hidden
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                e.target.value = ''
+                if (!file) return
+                try {
+                  const r = await api.importListing(await file.text())
+                  notify(`Importando ${r.titles} títulos en segundo plano. Aparecerán solos en la app.`)
+                } catch (err) {
+                  handleError(err)
+                }
+              }}
+            />
+          </label>
           <button className="btn primary" onClick={() => setEditing('new')}>
             + Nuevo título
           </button>

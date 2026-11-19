@@ -10,7 +10,7 @@ import { colors, radius, spacing } from '../theme';
 
 export default function Settings() {
   const { serverUrl, setServerUrl, status, error, lastSync, catalog, clearCache } = useCatalog();
-  const [input, setInput] = useState(serverUrl.replace(/^http:\/\//, ''));
+  const [input, setInput] = useState(serverUrl.replace(/^https?:\/\//, ''));
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -99,9 +99,8 @@ export default function Settings() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Servidor</Text>
         <Text style={styles.help}>
-          Escribe la IP de tu PC en la red local y el puerto del panel, por ejemplo{' '}
-          <Text style={styles.code}>192.168.1.10:3000</Text>.{'\n'}
-          En Windows la ves con el comando <Text style={styles.code}>ipconfig</Text> (Dirección IPv4).
+          Dirección del servidor en la nube, por ejemplo <Text style={styles.code}>moscasstream.onrender.com</Text>.{'\n'}
+          Para un servidor en tu red local usa su IP y puerto: <Text style={styles.code}>192.168.1.10:3000</Text>.
         </Text>
         <TextInput
           value={input}
@@ -109,7 +108,7 @@ export default function Settings() {
             setInput(t);
             setTestResult(null);
           }}
-          placeholder="192.168.1.10:3000"
+          placeholder="moscasstream.onrender.com"
           placeholderTextColor={colors.textMuted}
           autoCapitalize="none"
           autoCorrect={false}

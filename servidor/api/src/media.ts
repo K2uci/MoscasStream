@@ -3,9 +3,10 @@ import { z } from 'zod';
 import { requireAuth } from './auth.js';
 import { pool, touchCatalog } from './db.js';
 import { deleteImage, saveImage, thumbPathOf, upload } from './images.js';
+import { publicImageUrl } from './storage.js';
 import { downloadImage, isTmdbImagePath } from './tmdb.js';
 
-export const MEDIA_TYPES = ['pelicula', 'serie', 'anime', 'novela', 'documental', 'reality'] as const;
+export const MEDIA_TYPES = ['pelicula', 'pelicula_animada', 'serie', 'serie_animada', 'anime', 'novela', 'documental', 'reality'] as const;
 
 interface MediaRow {
   id: string;
@@ -31,9 +32,9 @@ function toItem(r: MediaRow) {
     id: r.id,
     title: r.title,
     type: r.type,
-    posterUrl: r.poster_path ?? undefined,
-    thumbUrl: r.poster_path ? thumbPathOf(r.poster_path) : undefined,
-    backdropUrl: r.backdrop_path ?? undefined,
+    posterUrl: publicImageUrl(r.poster_path),
+    thumbUrl: r.poster_path ? publicImageUrl(thumbPathOf(r.poster_path)) : undefined,
+    backdropUrl: publicImageUrl(r.backdrop_path),
     rating: Number(r.rating),
     synopsis: r.synopsis,
     year: r.year ?? undefined,

@@ -1,8 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import type { Catalog, MediaItem } from '../types';
 
 const KEY_SERVER = 'moscas:serverUrl'; // clave antigua (dirección única)
 const KEY_SERVERS = 'moscas:servers';
+
+/**
+ * Dirección del servidor en la nube que trae la app de fábrica (EXPO_PUBLIC_API_URL al compilar / publicar,
+ * o `extra.apiUrl` en app.json). Con ella los clientes no tienen que configurar nada.
+ */
+export const DEFAULT_SERVER_URL = normalizeServerUrl(
+  process.env.EXPO_PUBLIC_API_URL ?? (Constants.expoConfig?.extra?.apiUrl as string | undefined) ?? '',
+  'internet',
+);
 
 export type ServerKind = 'local' | 'internet';
 
@@ -15,11 +25,13 @@ export interface ServerConfig {
  * Normaliza lo que escribe el usuario: quita espacios y la "/" final, y añade el esquema si falta
  * (Local -> http://, Internet -> https://).
  */
-export function normalizeServerUrl(input: string, kind: ServerKind = 'local'): string {
+export function normalizeServerUrl(input: string, kind?: ServerKind): string {
   const url = input.trim().replace(/\/+$/, '');
   if (!url) return '';
   if (/^https?:\/\//i.test(url)) return url;
-  return `${kind === 'internet' ? 'https' : 'http'}://${url}`;
+  // Sin tipo explícito: IP o localhost -> http (red local); un dominio -> https (nube).
+  const local = /^(localhost|\d{1,3}(\.\d{1,3}){3})(:\d+)?(\/|$)/i.test(url);
+  return `${(kind ?? (local ? 'local' : 'internet')) === 'internet' ? 'https' : 'http'}://${url}`;
 }
 
 /** Las imágenes vienen como ruta relativa del servidor ("/uploads/x.webp"). */
@@ -136,6 +148,24 @@ export async function loadServers(): Promise<ServerConfig> {
 export async function saveServers(servers: ServerConfig): Promise<void> {
   await AsyncStorage.setItem(KEY_SERVERS, JSON.stringify(servers));
   await AsyncStorage.removeItem(KEY_SERVER).catch(() => {});
+}
+
+const KEY_SERVER_SET = 'moscas:serverSet'; // marca: el usuario guardó (o borró) la dirección a propósito
+
+/** Servidor actual: el guardado por el usuario o, si nunca configuró uno, el de la nube por defecto. */
+export async function loadServerUrl(): Promise<string> {
+  try {
+    const set = await AsyncStorage.getItem(KEY_SERVER_SET);
+    if (set) return (await AsyncStorage.getItem(KEY_SERVER)) ?? '';
+    const legacy = (await loadServers()).local;
+    return legacy || DEFAULT_SERVER_URL;
+  } catch {
+    return DEFAULT_SERVER_URL;
+  }
+}
+
+export async function saveServerUrl(url: string): Promise<void> {
+  await AsyncStorage.multiSet([[KEY_SERVER, url], [KEY_SERVER_SET, '1']]);
 }
 
 /** Limpia claves de versiones anteriores (el catálogo ahora vive en un archivo, no en AsyncStorage). */

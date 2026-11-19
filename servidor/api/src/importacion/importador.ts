@@ -74,8 +74,10 @@ async function findMatch(item: ParsedTitle): Promise<Candidate | null> {
 /** Tipo final: el de la sección del listado, afinado con lo que sugiere TMDb (anime, documental, reality...). */
 function finalType(listType: MediaType, suggested: MediaType): MediaType {
   if (listType === 'novela') return 'novela';
-  if (listType === 'pelicula') return suggested === 'documental' || suggested === 'anime' ? suggested : 'pelicula';
-  return suggested === 'pelicula' ? 'serie' : suggested;
+  if (listType === 'pelicula') return ['documental', 'anime', 'pelicula_animada'].includes(suggested) ? suggested : 'pelicula';
+  if (listType === 'pelicula_animada') return 'pelicula_animada';
+  if (listType === 'serie_animada') return suggested === 'anime' ? 'anime' : 'serie_animada';
+  return suggested === 'pelicula' || suggested === 'pelicula_animada' ? 'serie' : suggested === 'serie_animada' ? 'serie_animada' : suggested;
 }
 
 async function tryImage(p: string | null, kind: 'poster' | 'backdrop'): Promise<string | null> {
@@ -103,7 +105,7 @@ async function loadKnown(): Promise<Known> {
   for (const r of rows) {
     if (r.import_key) known.importKeys.add(r.import_key);
     if (r.tmdb_ref) known.tmdbRefs.add(r.tmdb_ref);
-    const kind = r.type === 'pelicula' || r.type === 'documental' ? 'movie' : 'tv';
+    const kind = r.type === 'pelicula' || r.type === 'pelicula_animada' || r.type === 'documental' ? 'movie' : 'tv';
     known.titles.add(`${kind}:${normalize(r.title)}`);
     if (r.year) known.titles.add(`${kind}:${normalize(r.title)}:${r.year}`);
   }
@@ -159,6 +161,52 @@ async function appendNotFound(file: string, items: ParsedTitle[]) {
 
 let running = false;
 
+/** Procesa los títulos de un listado. Devuelve false si se pausó (sin internet, token inválido…). */
+async function processListing(items: ParsedTitle[], file: string): Promise<boolean> {
+  const known = await loadKnown();
+  log(`${file}: ${items.length} títulos en el listado`);
+  const count = { added: 0, exists: 0, not_found: 0 };
+  const notFound: ParsedTitle[] = [];
+  for (const [n, item] of items.entries()) {
+    let result: 'added' | 'exists' | 'not_found';
+    try {
+      result = await importOne(item, known);
+    } catch (e) {
+      if (e instanceof ImportPaused) {
+        await touchCatalog();
+        log(`pausado: ${e.message}. Se puede reintentar más tarde (${file}).`);
+        return false;
+      }
+      log(`error con «${item.raw}»: ${(e as Error).message}`);
+      result = 'not_found';
+    }
+    count[result]++;
+    if (result === 'not_found') notFound.push(item);
+    if (result === 'added' && count.added % 20 === 0) await touchCatalog(); // la app ve el avance
+    if ((n + 1) % 100 === 0) {
+      log(`${file}: ${n + 1}/${items.length} · ${count.added} agregados, ${count.exists} ya estaban, ${count.not_found} no encontrados`);
+    }
+  }
+  await touchCatalog();
+  await appendNotFound(file, notFound);
+  log(`${file} terminado: ${count.added} agregados, ${count.exists} ya estaban, ${count.not_found} no encontrados.`);
+  return true;
+}
+
+/** Importa un listado recibido por el panel, en segundo plano. Devuelve cuántos títulos tiene, o 0 si ya hay una importación en curso. */
+export function importText(text: string, label: string): number {
+  if (running || !config.tmdbToken) return 0;
+  const items = parseListing(text);
+  running = true;
+  void processListing(items, label)
+    .catch((e) => log(`error inesperado: ${(e as Error).message}`))
+    .finally(() => {
+      running = false;
+    });
+  return items.length;
+}
+
+
 /** Procesa todos los .txt de la carpeta de importación. Se llama al arrancar el servidor. */
 export async function runImport(): Promise<void> {
   if (running) return;
@@ -175,42 +223,12 @@ export async function runImport(): Promise<void> {
       return;
     }
 
-    const known = await loadKnown();
     for (const file of files) {
       const full = path.join(config.importDir, file);
-      const items = parseListing(await fs.readFile(full, 'utf8'));
-      log(`${file}: ${items.length} títulos en el listado`);
-
-      const count = { added: 0, exists: 0, not_found: 0 };
-      const notFound: ParsedTitle[] = [];
-      for (const [n, item] of items.entries()) {
-        let result: 'added' | 'exists' | 'not_found';
-        try {
-          result = await importOne(item, known);
-        } catch (e) {
-          if (e instanceof ImportPaused) {
-            await touchCatalog();
-            log(`pausado: ${e.message}. Se continuará en el próximo arranque (${file} se conserva).`);
-            return;
-          }
-          log(`error con «${item.raw}»: ${(e as Error).message}`);
-          result = 'not_found';
-        }
-        count[result]++;
-        if (result === 'not_found') notFound.push(item);
-        if (result === 'added' && count.added % 20 === 0) await touchCatalog(); // la app ve el avance
-        if ((n + 1) % 100 === 0) {
-          log(`${file}: ${n + 1}/${items.length} · ${count.added} agregados, ${count.exists} ya estaban, ${count.not_found} no encontrados`);
-        }
-      }
-
-      await touchCatalog();
-      await appendNotFound(file, notFound);
+      const done = await processListing(parseListing(await fs.readFile(full, 'utf8')), file);
+      if (!done) return; // pausado: el .txt se conserva
       await fs.rm(full, { force: true });
-      log(
-        `${file} terminado: ${count.added} agregados, ${count.exists} ya estaban, ${count.not_found} no encontrados` +
-          `${count.not_found ? ' (ver no-encontrados.log)' : ''}. Archivo borrado.`,
-      );
+      log(`${file}: archivo borrado.`);
     }
   } catch (e) {
     log(`error inesperado: ${(e as Error).message}`);

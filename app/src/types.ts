@@ -1,4 +1,4 @@
-export type MediaType = 'pelicula' | 'serie' | 'anime' | 'novela' | 'documental' | 'reality';
+export type MediaType = 'pelicula' | 'pelicula_animada' | 'serie' | 'serie_animada' | 'anime' | 'novela' | 'documental' | 'reality';
 
 export interface MediaItem {
   id: string;

@@ -21,7 +21,9 @@ export const radius = { sm: 6, md: 10, lg: 16, pill: 999 };
 
 export const sections: { type: MediaType; label: string; singular: string; icon: string; tint: string }[] = [
   { type: 'pelicula', label: 'Películas', singular: 'Película', icon: '🎬', tint: '#5B8CFF' },
+  { type: 'pelicula_animada', label: 'Películas animadas', singular: 'Película animada', icon: '🎞️', tint: '#4FC3F7' },
   { type: 'serie', label: 'Series', singular: 'Serie', icon: '📺', tint: '#22D3A6' },
+  { type: 'serie_animada', label: 'Series animadas', singular: 'Serie animada', icon: '🧸', tint: '#F4D03F' },
   { type: 'anime', label: 'Anime', singular: 'Anime', icon: '🌸', tint: '#FF7AB6' },
   { type: 'novela', label: 'Novelas', singular: 'Novela', icon: '💞', tint: '#FFB020' },
   { type: 'documental', label: 'Documentales', singular: 'Documental', icon: '🌍', tint: '#A78BFA' },

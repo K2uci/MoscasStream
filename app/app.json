@@ -53,13 +53,17 @@
       "router": {},
       "eas": {
         "projectId": "d78480e8-669c-45ec-aefd-8b3e1e476b55"
-      }
+      },
+      "apiUrl": ""
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/d78480e8-669c-45ec-aefd-8b3e1e476b55"
+      "url": "https://u.expo.dev/d78480e8-669c-45ec-aefd-8b3e1e476b55",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "enabled": true
     }
   }
 }

@@ -37,7 +37,7 @@ CREATE INDEX IF NOT EXISTS media_tmdb_ref_idx ON media (tmdb_ref);
 -- Tipos permitidos (se recrea en cada arranque para poder agregar categorías nuevas).
 ALTER TABLE media DROP CONSTRAINT IF EXISTS media_type_check;
 ALTER TABLE media ADD CONSTRAINT media_type_check
-  CHECK (type IN ('pelicula','serie','anime','novela','documental','reality'));
+  CHECK (type IN ('pelicula','pelicula_animada','serie','serie_animada','anime','novela','documental','reality'));
 
 -- Una sola fila: cuándo cambió el catálogo por última vez (incluye borrados).
 CREATE TABLE IF NOT EXISTS catalog_meta (
@@ -50,7 +50,23 @@ INSERT INTO catalog_meta (id) VALUES (TRUE) ON CONFLICT DO NOTHING;
 ALTER TABLE media ADD COLUMN IF NOT EXISTS import_key TEXT;
 CREATE INDEX IF NOT EXISTS media_import_key_idx ON media (import_key);
 DROP TABLE IF EXISTS import_queue;
+
+-- Migraciones de una sola vez.
+CREATE TABLE IF NOT EXISTS migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now());
 `;
+
+/** Los títulos de animación que ya estaban como película/serie pasan a las secciones animadas (una sola vez). */
+async function migrateAnimated() {
+  const done = await pool.query(`INSERT INTO migrations (name) VALUES ('animated-types') ON CONFLICT DO NOTHING RETURNING name`);
+  if (!done.rowCount) return;
+  const animated = `genres && ARRAY['Animación','Animation','Animacion']`;
+  const a = await pool.query(`UPDATE media SET type='pelicula_animada' WHERE type='pelicula' AND ${animated}`);
+  const b = await pool.query(`UPDATE media SET type='serie_animada' WHERE type='serie' AND ${animated}`);
+  if (a.rowCount || b.rowCount) {
+    await touchCatalog();
+    console.log(`[db] ${a.rowCount} películas y ${b.rowCount} series reclasificadas como animadas`);
+  }
+}
 
 /** Espera a que Postgres acepte conexiones (al encender el PC el servicio puede tardar unos segundos). */
 async function waitForDb(retries = 30) {
@@ -69,6 +85,7 @@ async function waitForDb(retries = 30) {
 export async function initDb() {
   await waitForDb();
   await pool.query(schema);
+  await migrateAnimated();
 
   // El usuario administrador se sincroniza con el .env en cada arranque.
   const hash = await bcrypt.hash(config.adminPassword, 12);

@@ -1,8 +1,9 @@
 import { Stack } from 'expo-router';
+import * as Updates from 'expo-updates';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { AppState, View } from 'react-native';
 import { LoadingScreen } from '../components/LoadingScreen';
 import { CatalogProvider, useCatalog } from '../context/CatalogContext';
 import { colors } from '../theme';
@@ -13,7 +14,29 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 /** Tiempo mínimo de la animación de carga, para que no parpadee si la red responde rápido. */
 const MIN_LOADING_MS = 2600;
 
+/** Actualizaciones por EAS Update (OTA): se busca una nueva al abrir y cada vez que la app vuelve al primer plano. */
+async function applyUpdate() {
+  if (__DEV__ || !Updates.isEnabled) return;
+  try {
+    const check = await Updates.checkForUpdateAsync();
+    if (!check.isAvailable) return;
+    await Updates.fetchUpdateAsync();
+    await Updates.reloadAsync(); // la versión nueva se aplica de inmediato
+  } catch {
+    // sin red: se reintenta la próxima vez
+  }
+}
+
+function useOtaUpdates() {
+  useEffect(() => {
+    applyUpdate();
+    const sub = AppState.addEventListener('change', (s) => s === 'active' && applyUpdate());
+    return () => sub.remove();
+  }, []);
+}
+
 export default function RootLayout() {
+  useOtaUpdates();
   return (
     <CatalogProvider>
       <Shell />

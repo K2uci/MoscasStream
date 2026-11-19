@@ -2,7 +2,7 @@
 // Formato del listado: secciones "[PELICULAS/...]" dentro de bloques cat << 'EOF' ... EOF,
 // y una línea por audiovisual con ruido como "[1080p] [Dual Audio] [2,26 Gb]".
 
-export type MediaType = 'pelicula' | 'serie' | 'anime' | 'novela' | 'documental' | 'reality';
+export type MediaType = 'pelicula' | 'pelicula_animada' | 'serie' | 'serie_animada' | 'anime' | 'novela' | 'documental' | 'reality';
 export type TmdbKind = 'movie' | 'tv';
 
 export interface ParsedTitle {
@@ -17,6 +17,8 @@ export interface ParsedTitle {
   /** Clave para no repetir: tipo + título normalizado (+ año en películas). */
   key: string;
 }
+
+export const isMovieType = (t: MediaType) => t === 'pelicula' || t === 'pelicula_animada' || t === 'documental';
 
 /** Quita tildes, signos y mayúsculas: "Más Vampiros En La Habana" -> "mas vampiros en la habana". */
 export function normalize(s: string): string {
@@ -34,8 +36,9 @@ function sectionType(section: string): MediaType | null {
   const s = normalize(section);
   if (s.includes('xxx') || s.includes('excluid')) return null;
   if (s.includes('novela')) return 'novela';
-  if (s.includes('serie')) return 'serie';
-  return 'pelicula';
+  const animated = s.includes('animad') || s.includes('dibujos') || s.includes('cartoon');
+  if (s.includes('serie')) return animated ? 'serie_animada' : 'serie';
+  return animated ? 'pelicula_animada' : 'pelicula';
 }
 
 // Marcas de calidad, idioma, etc. que no forman parte del título.
@@ -69,7 +72,7 @@ function cleanTitle(line: string, type: MediaType): { title: string; year?: numb
 
   // Series: "Bandidos [Temp-2] [2025] [Caps.07]", "Gravity Falls T01 (20-20) ...", "Ben 10 (Season 1)",
   // "El Barco Temp[1]", "The Boys 3T", "Corazones Blindados 122 cap".
-  if (type !== 'pelicula') {
+  if (!isMovieType(type)) {
     s = s
       .replace(/\s*[-_]?\s*[[(]?\s*(temp(orada)?|season)\s*[-.[]?\s*\d+.*$/i, '')
       .replace(/\s+T\d{1,2}\b.*$/i, '')
@@ -137,7 +140,7 @@ export function parseListing(text: string): ParsedTitle[] {
 
   function push(cleaned: { title: string; year?: number; alt?: string }, line: string) {
     if (!section || !type) return;
-    const kind: TmdbKind = type === 'pelicula' ? 'movie' : 'tv';
+    const kind: TmdbKind = isMovieType(type) ? 'movie' : 'tv';
     const key = `${kind}:${normalize(cleaned.title)}${kind === 'movie' && cleaned.year ? `:${cleaned.year}` : ''}`;
     if (seen.has(key)) return; // p. ej. varias temporadas de la misma serie
     seen.add(key);
