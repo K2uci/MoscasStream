@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import * as Updates from 'expo-updates';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusPill } from '../components/StatusPill';
 import { useCatalog } from '../context/CatalogContext';
 import { fetchCatalog, normalizeServerUrl } from '../lib/api';
@@ -10,6 +11,7 @@ import { IMAGE_CACHE_LIMIT, catalogCacheBytes, formatBytes, imageCacheBytes } fr
 import { colors, radius, spacing } from '../theme';
 
 export default function Settings() {
+  const insets = useSafeAreaInsets();
   const { serverUrl, setServerUrl, status, error, lastSync, catalog, clearCache } = useCatalog();
   const [input, setInput] = useState(serverUrl.replace(/^https?:\/\//, ''));
   const [testing, setTesting] = useState(false);
@@ -83,7 +85,11 @@ export default function Settings() {
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl * 2 }]}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={styles.card}>
         <View style={styles.rowBetween}>
           <Text style={styles.cardTitle}>Estado</Text>
