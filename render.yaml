@@ -6,7 +6,7 @@ services:
     runtime: docker
     dockerfilePath: ./servidor/Dockerfile
     dockerContext: ./servidor
-    plan: starter # el plan gratis se "duerme" tras 15 min sin uso; starter ($7/mes) queda siempre encendido
+    plan: free # gratis: se duerme tras 15 min sin tráfico; un monitor externo (UptimeRobot, gratis) lo mantiene despierto
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:

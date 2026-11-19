@@ -84,7 +84,7 @@ export type FetchResult = { notModified: true } | { notModified: false; catalog:
  * Descarga el catálogo. Con `etag`, el servidor responde 304 si nada cambió
  * y no se vuelve a transferir ni procesar la lista completa.
  */
-export async function fetchCatalog(serverUrl: string, etag?: string | null, timeoutMs = 15000): Promise<FetchResult> {
+export async function fetchCatalog(serverUrl: string, etag?: string | null, timeoutMs = 60000): Promise<FetchResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
