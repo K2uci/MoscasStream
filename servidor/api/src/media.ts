@@ -24,6 +24,7 @@ interface MediaRow {
   tmdb_ref: string | null;
   added_at: Date;
   updated_at: Date;
+  ver?: string;
 }
 
 /** Formato que consume la app Android (ver app/src/types.ts). */
@@ -52,18 +53,64 @@ function toItem(r: MediaRow) {
 
 export const catalogRouter = Router();
 
-// La app consulta cada 30 s. Con el ETag, si nada cambió se responde 304 sin leer ni enviar el catálogo.
+// Versión de una fila en microsegundos (bigint): el cursor no pierde precisión como con milisegundos de JS.
+const VER = '(extract(epoch from updated_at) * 1000000)::bigint';
+const NIL_UUID = '00000000-0000-0000-0000-000000000000';
+
+/** Cursor opaco "versión:id". */
+function parseCursor(raw: unknown): { ver: string; id: string } | null {
+  const m = /^(\d{1,20}):([0-9a-fA-F-]{36})$/.exec(typeof raw === 'string' ? raw : '');
+  return m ? { ver: m[1], id: m[2] } : null;
+}
+
+// GET /api/catalog
+//  - Sin parámetros: catálogo completo con ETag (compatible con versiones anteriores de la app).
+//  - Con ?limit=N&after=<cursor>: páginas de hasta N títulos (máx. 1000) ordenadas por versión. La app guarda
+//    el `next` de la última página y en la siguiente sincronización solo recibe lo nuevo o modificado.
+//    `deleted` (ids borrados desde `since`) llega en la última página.
 catalogRouter.get('/', async (req, res) => {
-  const meta = await pool.query<{ updated_at: Date }>('SELECT updated_at FROM catalog_meta');
-  const updatedAt = meta.rows[0]?.updated_at ?? new Date();
-  const etag = `"cat-${updatedAt.getTime()}"`;
-  res.set({ ETag: etag, 'Cache-Control': 'no-cache' });
-  if (req.headers['if-none-match'] === etag) {
-    res.status(304).end();
+  if (req.query.limit === undefined) {
+    // La app consulta cada 30 s. Con el ETag, si nada cambió se responde 304 sin leer ni enviar el catálogo.
+    const meta = await pool.query<{ updated_at: Date }>('SELECT updated_at FROM catalog_meta');
+    const updatedAt = meta.rows[0]?.updated_at ?? new Date();
+    const etag = `"cat-${updatedAt.getTime()}"`;
+    res.set({ ETag: etag, 'Cache-Control': 'no-cache' });
+    if (req.headers['if-none-match'] === etag) {
+      res.status(304).end();
+      return;
+    }
+    const items = await pool.query<MediaRow>('SELECT * FROM media ORDER BY added_at DESC');
+    res.json({ updatedAt: updatedAt.toISOString(), items: items.rows.map(toItem) });
     return;
   }
-  const items = await pool.query<MediaRow>('SELECT * FROM media ORDER BY added_at DESC');
-  res.json({ updatedAt: updatedAt.toISOString(), items: items.rows.map(toItem) });
+
+  const limit = Math.min(Math.max(parseInt(String(req.query.limit), 10) || 300, 1), 1000);
+  const after = parseCursor(req.query.after) ?? { ver: '0', id: NIL_UUID };
+  const since = /^\d{1,20}$/.test(String(req.query.since ?? '')) ? String(req.query.since) : after.ver;
+
+  const { rows } = await pool.query<MediaRow>(
+    `SELECT *, ${VER} AS ver FROM media
+     WHERE (${VER}, id) > ($1::bigint, $2::uuid)
+     ORDER BY ver, id LIMIT $3`,
+    [after.ver, after.id, limit + 1],
+  );
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const last = page[page.length - 1];
+  const next = last ? `${last.ver}:${last.id}` : `${after.ver}:${after.id}`;
+
+  let deleted: string[] = [];
+  if (!hasMore && since !== '0') {
+    const t = await pool.query<{ id: string }>(
+      `SELECT id FROM media_tombstones WHERE (extract(epoch from deleted_at) * 1000000)::bigint > $1::bigint`,
+      [since],
+    );
+    deleted = t.rows.map((r) => r.id);
+  }
+  const total = (await pool.query<{ n: string }>('SELECT count(*) AS n FROM media')).rows[0].n;
+
+  res.set('Cache-Control', 'no-store');
+  res.json({ items: page.map(toItem), deleted, next, hasMore, total: Number(total), serverTime: new Date().toISOString() });
 });
 
 // ---------- Administración (requiere login) ----------
@@ -248,6 +295,7 @@ adminRouter.delete('/media/:id', async (req, res) => {
     res.status(404).json({ error: 'No encontrado' });
     return;
   }
+  await pool.query('INSERT INTO media_tombstones (id) VALUES ($1) ON CONFLICT (id) DO UPDATE SET deleted_at = now()', [rows[0].id]);
   await Promise.all([deleteImage(rows[0].poster_path), deleteImage(rows[0].backdrop_path)]);
   await touchCatalog();
   res.status(204).end();

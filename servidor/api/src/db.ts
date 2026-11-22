@@ -53,6 +53,10 @@ DROP TABLE IF EXISTS import_queue;
 
 -- Migraciones de una sola vez.
 CREATE TABLE IF NOT EXISTS migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now());
+
+-- Sincronización incremental: índice por versión y registro de títulos borrados (para que las apps los quiten).
+CREATE INDEX IF NOT EXISTS media_updated_idx ON media (updated_at);
+CREATE TABLE IF NOT EXISTS media_tombstones (id UUID PRIMARY KEY, deleted_at TIMESTAMPTZ NOT NULL DEFAULT now());
 `;
 
 /** Los títulos de animación que ya estaban como película/serie pasan a las secciones animadas (una sola vez). */
@@ -60,8 +64,8 @@ async function migrateAnimated() {
   const done = await pool.query(`INSERT INTO migrations (name) VALUES ('animated-types') ON CONFLICT DO NOTHING RETURNING name`);
   if (!done.rowCount) return;
   const animated = `genres && ARRAY['Animación','Animation','Animacion']`;
-  const a = await pool.query(`UPDATE media SET type='pelicula_animada' WHERE type='pelicula' AND ${animated}`);
-  const b = await pool.query(`UPDATE media SET type='serie_animada' WHERE type='serie' AND ${animated}`);
+  const a = await pool.query(`UPDATE media SET type='pelicula_animada', updated_at=now() WHERE type='pelicula' AND ${animated}`);
+  const b = await pool.query(`UPDATE media SET type='serie_animada', updated_at=now() WHERE type='serie' AND ${animated}`);
   if (a.rowCount || b.rowCount) {
     await touchCatalog();
     console.log(`[db] ${a.rowCount} películas y ${b.rowCount} series reclasificadas como animadas`);
@@ -82,10 +86,19 @@ async function waitForDb(retries = 30) {
   }
 }
 
+/** Una sola vez: todos los títulos reciben una versión nueva, para que las apps que ya sincronizaron los vuelvan a pedir (ya paginados). */
+async function bumpVersionsForSync() {
+  const done = await pool.query(`INSERT INTO migrations (name) VALUES ('sync-v1') ON CONFLICT DO NOTHING RETURNING name`);
+  if (!done.rowCount) return;
+  await pool.query('UPDATE media SET updated_at = now()');
+  await touchCatalog();
+}
+
 export async function initDb() {
   await waitForDb();
   await pool.query(schema);
   await migrateAnimated();
+  await bumpVersionsForSync();
 
   // El usuario administrador se sincroniza con el .env en cada arranque.
   const hash = await bcrypt.hash(config.adminPassword, 12);
