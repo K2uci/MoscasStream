@@ -5,13 +5,14 @@
 # Uso (PowerShell, desde la carpeta servidor, con Docker encendido):
 #   .\scripts\fusionar-en-neon.ps1
 # Te pedirá la cadena de conexión de Neon (Connect -> Copy snippet).
-param([string]$Dump = 'copias\pc-vieja\moscasstream.dump')
+param([string]$Dump = 'copias\pc-vieja\moscasstream.dump', [string]$Url = '')
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
 if (-not (Test-Path $Dump)) { throw "No existe $Dump" }
 $dumpFull = (Resolve-Path $Dump).Path
 
-$url = Read-Host 'Cadena de conexión de Neon (postgres://...)'
+$url = $Url
+if (-not $url) { $url = Read-Host 'Cadena de conexión de Neon (postgres://...)' }
 $url = $url -replace '[&?]channel_binding=require', ''
 if ($url -notmatch '^postgres(ql)?://') { throw 'La cadena debe empezar por postgres://' }
 
@@ -35,6 +36,7 @@ try {
   docker exec $tmp psql -U postgres -d old -v ON_ERROR_STOP=1 -c "ALTER TABLE media ADD COLUMN IF NOT EXISTS tmdb_ref TEXT; ALTER TABLE media ADD COLUMN IF NOT EXISTS import_key TEXT;"
   docker exec $tmp psql -U postgres -d old -v ON_ERROR_STOP=1 -c "\copy (SELECT id,title,type,poster_path,backdrop_path,rating,synopsis,year,genres,episodes,seasons,available,added_at,updated_at,tmdb_ref,import_key FROM media) TO '/tmp/media.tsv'"
   docker cp "${tmp}:/tmp/media.tsv" "$work\media.tsv"
+  if (-not (Test-Path "$work\media.tsv")) { Write-Host 'ERROR: no se pudo exportar la base vieja'; exit 1 }
 
   # 3) Fusionar en Neon (todo en una transacción: si algo falla, no cambia nada)
   @'
@@ -75,6 +77,7 @@ COMMIT;
 '@ | Set-Content -Encoding utf8 "$work\merge.sql"
 
   docker run --rm -v "${work}:/work" $img psql $url -v ON_ERROR_STOP=1 -f /work/merge.sql
+  if ($LASTEXITCODE -ne 0) { Write-Host 'ERROR: la fusion fallo y se revirtio (Neon no cambio).'; exit 1 }
   Write-Host "`nListo. La app mostrará los títulos nuevos en menos de 30 segundos."
   Write-Host 'Recuerda subir las imágenes con node scripts/subir-imagenes.mjs para que se vean los pósters.'
 }
