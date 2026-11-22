@@ -118,6 +118,8 @@ function normalizeItem(i: MediaItem): MediaItem {
     episodes: i.episodes,
     seasons: i.seasons,
     available: i.available !== false,
+    runtime: i.runtime,
+    trailerUrl: typeof i.trailerUrl === 'string' && i.trailerUrl.startsWith('https://') ? i.trailerUrl : undefined,
     addedAt: i.addedAt ?? new Date(0).toISOString(),
   };
 }

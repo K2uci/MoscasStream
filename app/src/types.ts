@@ -19,6 +19,10 @@ export interface MediaItem {
   seasons?: number;
   /** Si está disponible ahora mismo para el cliente. */
   available: boolean;
+  /** Duración en minutos (película) o por capítulo (serie). */
+  runtime?: number;
+  /** Enlace del tráiler en YouTube. */
+  trailerUrl?: string;
   /** Fecha ISO en que se agregó al catálogo. */
   addedAt: string;
 }

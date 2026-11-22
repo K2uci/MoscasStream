@@ -1,15 +1,24 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Poster } from '../../components/Poster';
 import { Rating } from '../../components/Rating';
 import { useCatalog } from '../../context/CatalogContext';
+import { useFavorites } from '../../context/FavoritesContext';
 import { colors, radius, sectionOf, spacing } from '../../theme';
+
+/** 105 -> "1 h 45 min"; 45 -> "45 min". */
+function formatRuntime(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h ? `${h} h${m ? ` ${m} min` : ''}` : `${m} min`;
+}
 
 export default function MediaDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getItem } = useCatalog();
+  const { isFavorite, toggle } = useFavorites();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const item = getItem(id);
@@ -34,7 +43,9 @@ export default function MediaDetail() {
     item.year ? String(item.year) : null,
     item.seasons ? `${item.seasons} temporada${item.seasons > 1 ? 's' : ''}` : null,
     item.episodes ? `${item.episodes} capítulos` : null,
+    item.runtime ? `⏱ ${formatRuntime(item.runtime)}${item.episodes || item.seasons ? ' por capítulo' : ''}` : null,
   ].filter(Boolean) as string[];
+  const favorite = isFavorite(item.id);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xl }}>
@@ -82,6 +93,28 @@ export default function MediaDetail() {
           </View>
         )}
 
+        <View style={styles.actions}>
+          <Pressable
+            onPress={() => toggle(item.id)}
+            style={[styles.action, favorite && { borderColor: colors.danger, backgroundColor: colors.dangerDim }]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: favorite }}
+          >
+            <Text style={[styles.actionText, favorite && { color: colors.danger }]}>
+              {favorite ? '❤️ En favoritos' : '🤍 Agregar a favoritos'}
+            </Text>
+          </Pressable>
+          {item.trailerUrl && (
+            <Pressable
+              onPress={() => Linking.openURL(item.trailerUrl!).catch(() => {})}
+              style={[styles.action, { borderColor: colors.accent }]}
+              accessibilityRole="link"
+            >
+              <Text style={[styles.actionText, { color: colors.accent }]}>▶ Ver tráiler</Text>
+            </Pressable>
+          )}
+        </View>
+
         <Text style={styles.heading}>Sinopsis</Text>
         <Text style={styles.synopsis}>{item.synopsis || 'Sin sinopsis.'}</Text>
       </View>
@@ -118,6 +151,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   chipText: { color: colors.text, fontSize: 12, fontWeight: '600' },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
+  action: {
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
+  },
+  actionText: { color: colors.text, fontWeight: '800', fontSize: 14 },
   heading: { color: colors.text, fontSize: 17, fontWeight: '800', marginTop: spacing.md, marginBottom: spacing.sm },
   synopsis: { color: colors.textMuted, fontSize: 15, lineHeight: 23 },
   muted: { color: colors.textMuted, fontSize: 15, textAlign: 'center' },

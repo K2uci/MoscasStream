@@ -3,18 +3,21 @@ import { colors, radius, sections, spacing } from '../theme';
 import type { MediaItem, MediaType } from '../types';
 
 /** "recent" no tiene tarjeta: se abre con "Ver todo" en Recién agregados. */
-export type Filter = 'all' | 'recent' | MediaType;
+export type Filter = 'all' | 'recent' | 'favorites' | MediaType;
 
 interface Props {
   items: MediaItem[];
+  /** Títulos favoritos (si hay, aparece la tarjeta Favoritos). */
+  favorites?: MediaItem[];
   active: Filter;
   onChange: (f: Filter) => void;
 }
 
 /** Tarjetas del dashboard: una por sección con total y disponibles. Tocar una filtra el catálogo. */
-export function SectionTiles({ items, active, onChange }: Props) {
+export function SectionTiles({ items, favorites = [], active, onChange }: Props) {
   const tiles = [
     { key: 'all' as Filter, label: 'Todo', icon: '✨', tint: colors.accent, list: items },
+    ...(favorites.length ? [{ key: 'favorites' as Filter, label: 'Favoritos', icon: '❤️', tint: colors.danger, list: favorites }] : []),
     ...sections.map((s) => ({
       key: s.type as Filter,
       label: s.label,

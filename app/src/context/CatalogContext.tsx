@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
-import { fetchCatalogPage, INITIAL_CURSOR, loadServerUrl, removeLegacyKeys, saveServerUrl } from '../lib/api';
+import { loadServerUrl, removeLegacyKeys, saveServerUrl } from '../lib/api';
+import { flushRequestQueue } from '../lib/requests';
+import { syncCatalog } from '../lib/sync';
 import { clearImageCache, enforceImageCacheLimit, readCachedCatalog, writeCachedCatalog } from '../lib/storage';
 import type { Catalog, ConnectionStatus, MediaItem } from '../types';
 
@@ -8,8 +10,6 @@ import type { Catalog, ConnectionStatus, MediaItem } from '../types';
 const POLL_MS = 30_000;
 /** Con el servidor sin responder, el intervalo se duplica (30 s, 1 min, 2 min…) hasta este máximo, para no gastar batería ni datos. */
 const MAX_POLL_MS = 2 * 60_000;
-/** Títulos por página. Con mala conexión llegan por partes y lo descargado no se pierde si se corta. */
-const PAGE_SIZE = 300;
 /** Cada cuánto, como máximo, se revisa el tamaño del caché de imágenes. */
 const CACHE_CHECK_MS = 10 * 60_000;
 
@@ -88,45 +88,20 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       inFlight.current = true;
       if (showSpinner) setRefreshing(true);
       try {
-        const fresh = cursorRef.current === null;
-        // Caché antigua sin cursor: no se reemplaza lo que se ve hasta tener todo el catálogo nuevo.
-        const hold = fresh && itemsRef.current.size > 0;
-        let after = cursorRef.current ?? INITIAL_CURSOR;
-        const since = after.split(':')[0];
-        let work = fresh ? new Map<string, MediaItem>() : new Map(itemsRef.current);
-        let serverTime = new Date().toISOString();
-        let changed = false;
-        let loaded = 0;
-
-        for (;;) {
-          const result = await fetchCatalogPage(url, { after, since, limit: PAGE_SIZE });
-          if (result.kind === 'full') {
-            // Servidor sin paginación (versión anterior): llega todo junto y se reemplaza.
-            await commit(new Map(result.catalog.items.map((i) => [i.id, i])), null, result.catalog.updatedAt);
-            changed = false;
-            break;
-          }
-          const { page } = result;
-          for (const item of page.items) work.set(item.id, item);
-          for (const id of page.deleted) work.delete(id);
-          after = page.next;
-          serverTime = page.serverTime;
-          loaded += page.items.length;
-          if (page.items.length || page.deleted.length) changed = true;
-          if (fresh) setSyncProgress({ loaded, total: Math.max(page.total, loaded) });
-
-          if (page.hasMore) {
-            if (!hold && changed) await commit(work, after, serverTime); // se ve ya y queda guardado el avance
-            continue;
-          }
-          if (changed || hold || cursorRef.current !== after) await commit(work, after, serverTime);
-          break;
-        }
+        await syncCatalog(
+          url,
+          { items: itemsRef.current, cursor: cursorRef.current },
+          {
+            onProgress: (loaded, total) => setSyncProgress({ loaded, total }),
+            onCommit: (snap) => commit(snap.items, snap.cursor, snap.serverTime),
+          },
+        );
 
         failures.current = 0;
         setStatus('online');
         setError(null);
         setLastSync(new Date().toISOString());
+        void flushRequestQueue(url); // pedidos hechos sin conexión
         return true;
       } catch (e) {
         // Sin servidor o con red mala: se sigue mostrando (y usando) lo guardado en el dispositivo.

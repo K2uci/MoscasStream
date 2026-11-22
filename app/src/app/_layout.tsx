@@ -4,8 +4,10 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import { AppState, View } from 'react-native';
+import '../lib/notifications'; // define la tarea de novedades en segundo plano al cargar la app
 import { LoadingScreen } from '../components/LoadingScreen';
 import { CatalogProvider, useCatalog } from '../context/CatalogContext';
+import { FavoritesProvider } from '../context/FavoritesContext';
 import { colors } from '../theme';
 
 // La splash nativa se mantiene hasta que la pantalla de carga animada está montada.
@@ -39,7 +41,9 @@ export default function RootLayout() {
   useOtaUpdates();
   return (
     <CatalogProvider>
-      <Shell />
+      <FavoritesProvider>
+        <Shell />
+      </FavoritesProvider>
     </CatalogProvider>
   );
 }
