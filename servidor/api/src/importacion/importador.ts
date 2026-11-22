@@ -52,7 +52,7 @@ function queriesFor(item: ParsedTitle): string[] {
 
 type Candidate = Awaited<ReturnType<typeof searchKind>>[number];
 
-async function findMatch(item: ParsedTitle): Promise<Candidate | null> {
+export async function findMatch(item: ParsedTitle, minScore = 0.6): Promise<Candidate | null> {
   let best: { c: Candidate; score: number } | null = null;
   for (const q of queriesFor(item)) {
     let results = await searchKind(item.kind, q, { year: item.year });
@@ -68,7 +68,7 @@ async function findMatch(item: ParsedTitle): Promise<Candidate | null> {
     }
     if (best && best.score >= 0.85) break; // coincidencia clara: no hace falta probar más variantes
   }
-  return best && best.score >= 0.6 ? best.c : null;
+  return best && best.score >= minScore ? best.c : null;
 }
 
 /** Tipo final: el de la sección del listado, afinado con lo que sugiere TMDb (anime, documental, reality...). */
@@ -136,10 +136,10 @@ async function importOne(item: ParsedTitle, known: Known): Promise<'added' | 'ex
   try {
     await pool.query(
       `INSERT INTO media (title, type, rating, synopsis, year, genres, episodes, seasons, available,
-                          poster_path, backdrop_path, tmdb_ref, import_key)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,TRUE,$9,$10,$11,$12)`,
+                          poster_path, backdrop_path, tmdb_ref, import_key, runtime, trailer_url, extras_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,TRUE,$9,$10,$11,$12,$13,$14,now())`,
       [d.title || item.title, finalType(item.type, d.suggestedType), d.rating, d.synopsis, d.year ?? item.year ?? null,
-       d.genres.slice(0, 15), d.episodes ?? null, d.seasons ?? null, poster, backdrop, d.ref, item.key],
+       d.genres.slice(0, 15), d.episodes ?? null, d.seasons ?? null, poster, backdrop, d.ref, item.key, d.runtime ?? null, d.trailerUrl],
     );
   } catch (e) {
     await Promise.all([deleteImage(poster), deleteImage(backdrop)]);

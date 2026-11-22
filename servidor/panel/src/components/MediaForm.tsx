@@ -20,6 +20,8 @@ export function MediaForm({ item, onClose, onSaved, onError }: Props) {
   const [episodes, setEpisodes] = useState(item?.episodes ? String(item.episodes) : '')
   const [seasons, setSeasons] = useState(item?.seasons ? String(item.seasons) : '')
   const [synopsis, setSynopsis] = useState(item?.synopsis ?? '')
+  const [runtime, setRuntime] = useState(item?.runtime ? String(item.runtime) : '')
+  const [trailerUrl, setTrailerUrl] = useState(item?.trailerUrl ?? '')
   const [available, setAvailable] = useState(item?.available ?? true)
   const [poster, setPoster] = useState<ImageState>({
     url: item?.posterUrl ?? null,
@@ -60,6 +62,8 @@ export function MediaForm({ item, onClose, onSaved, onError }: Props) {
     setEpisodes(d.episodes ? String(d.episodes) : '')
     setSeasons(d.seasons ? String(d.seasons) : '')
     setSynopsis(d.synopsis)
+    setRuntime(d.runtime ? String(d.runtime) : '')
+    setTrailerUrl(d.trailerUrl ?? '')
     // Si TMDb no tiene imagen, se conserva la actual.
     if (d.posterPath) setPoster({ url: d.posterPreview, file: null, removed: false, tmdbPath: d.posterPath })
     if (d.backdropPath) setBackdrop({ url: d.backdropPreview, file: null, removed: false, tmdbPath: d.backdropPath })
@@ -87,6 +91,8 @@ export function MediaForm({ item, onClose, onSaved, onError }: Props) {
     form.set('episodes', WITH_EPISODES.includes(type) ? episodes : '')
     form.set('seasons', WITH_EPISODES.includes(type) ? seasons : '')
     form.set('synopsis', synopsis)
+    form.set('runtime', runtime)
+    form.set('trailerUrl', trailerUrl)
     form.set('available', String(available))
     if (poster.file) form.set('poster', poster.file)
     else if (poster.tmdbPath && !poster.removed) form.set('posterTmdb', poster.tmdbPath)
@@ -230,6 +236,22 @@ export function MediaForm({ item, onClose, onSaved, onError }: Props) {
                     </label>
                   </div>
                 )}
+
+                <div className="field-row">
+                  <label>
+                    Duración (minutos{WITH_EPISODES.includes(type) ? ' por capítulo' : ''})
+                    <input type="number" min={1} max={2000} value={runtime} onChange={(e) => setRuntime(e.target.value)} />
+                  </label>
+                  <label>
+                    Tráiler (enlace de YouTube)
+                    <input
+                      type="url"
+                      value={trailerUrl}
+                      onChange={(e) => setTrailerUrl(e.target.value)}
+                      placeholder="https://www.youtube.com/watch?v=…"
+                    />
+                  </label>
+                </div>
 
                 <label>
                   Géneros (separados por coma)

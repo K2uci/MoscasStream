@@ -15,6 +15,8 @@ export interface MediaItem {
   seasons?: number
   available: boolean
   tmdbRef?: string
+  runtime?: number
+  trailerUrl?: string
   addedAt: string
   updatedAt: string
 }
@@ -65,6 +67,18 @@ export interface TmdbDetails {
   posterPreview: string | null
   backdropPreview: string | null
   imdbUrl: string | null
+  runtime?: number
+  trailerUrl?: string | null
+}
+
+export interface TitleRequest {
+  id: string
+  title: string
+  type?: MediaType
+  note: string
+  requester: string
+  status: 'pendiente' | 'agregado' | 'descartado'
+  createdAt: string
 }
 
 export class UnauthorizedError extends Error {}
@@ -98,6 +112,11 @@ export const api = {
   remove: (id: string) => request<void>(`/api/admin/media/${id}`, { method: 'DELETE' }),
   importListing: (text: string) =>
     request<{ ok: true; titles: number }>('/api/admin/import', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: text }),
+  requests: () => request<TitleRequest[]>('/api/admin/requests'),
+  requestsPending: () => request<{ pending: number }>('/api/admin/requests/count'),
+  setRequestStatus: (id: string, status: TitleRequest['status']) =>
+    request<TitleRequest>(`/api/admin/requests/${id}`, json('PATCH', { status })),
+  removeRequest: (id: string) => request<void>(`/api/admin/requests/${id}`, { method: 'DELETE' }),
   tmdbStatus: () => request<{ enabled: boolean; language: string }>('/api/admin/tmdb/status'),
   tmdbSearch: (q: string, year?: string, language?: string) => {
     const p = new URLSearchParams({ q })

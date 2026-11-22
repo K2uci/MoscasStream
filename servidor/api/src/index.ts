@@ -8,7 +8,9 @@ import { initDb, pool } from './db.js';
 import { backfillThumbs } from './images.js';
 import { storage } from './storage.js';
 import { importText, runImport } from './importacion/importador.js';
+import { backfillStatus, runBackfill } from './importacion/relleno.js';
 import { adminRouter, catalogRouter } from './media.js';
+import { adminRequestsRouter, publicRequestsRouter } from './requests.js';
 import { TmdbError, tmdbRouter } from './tmdb.js';
 
 const app = express();
@@ -22,7 +24,7 @@ app.use(cookieParser());
 const publicCors = (req: Request, res: Response, next: NextFunction) => {
   res.set({
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'If-None-Match',
+    'Access-Control-Allow-Headers': 'If-None-Match, Content-Type',
     'Access-Control-Expose-Headers': 'ETag',
   });
   if (req.method === 'OPTIONS') {
@@ -37,6 +39,7 @@ app.get('/api/health', async (_req, res) => {
   res.json({ ok: true });
 });
 app.use('/api/catalog', publicCors, catalogRouter);
+app.use('/api/requests', publicCors, publicRequestsRouter);
 if (storage.kind === 'local') {
   app.use('/uploads', publicCors, express.static(config.uploadDir, { maxAge: '30d', immutable: true }), (_req, res) => {
     res.status(404).end();
@@ -66,6 +69,12 @@ app.post('/api/admin/import', requireAuth, express.text({ type: '*/*', limit: '1
   const started = importText(text, 'panel');
   res.status(started ? 202 : 409).json(started ? { ok: true, titles: started } : { error: 'Ya hay una importación en curso' });
 });
+app.get('/api/admin/backfill', requireAuth, async (_req, res) => res.json(await backfillStatus()));
+app.post('/api/admin/backfill', requireAuth, (_req, res) => {
+  void runBackfill();
+  res.status(202).json({ ok: true });
+});
+app.use('/api/admin/requests', adminRequestsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
@@ -104,4 +113,6 @@ app.listen(config.port, '0.0.0.0', () => {
   console.log(`[api] Autocompletado TMDb: ${config.tmdbToken ? 'activo' : 'desactivado (falta TMDB_TOKEN)'}`);
   // Los listados de importacion/ se procesan en segundo plano: el servidor ya atiende mientras tanto.
   void runImport();
+  // Duración y tráiler de los títulos que aún no los tienen (reanudable; ver importacion/relleno.ts).
+  void runBackfill();
 });

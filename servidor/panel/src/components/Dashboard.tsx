@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, TYPES, typeInfo, UnauthorizedError, type MediaItem, type MediaType } from '../api'
 import { MediaForm } from './MediaForm'
+import { Requests } from './Requests'
 
 const PAGE_SIZE = 100
 
@@ -18,6 +19,8 @@ export function Dashboard({ user, onLogout, onUnauthorized }: Props) {
   const [editing, setEditing] = useState<MediaItem | 'new' | null>(null)
   // Con miles de títulos, la tabla se muestra por páginas para que el panel siga fluido.
   const [shown, setShown] = useState(PAGE_SIZE)
+  const [showRequests, setShowRequests] = useState(false)
+  const [pendingRequests, setPendingRequests] = useState(0)
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null)
 
   const notify = useCallback((text: string, error = false) => {
@@ -46,6 +49,13 @@ export function Dashboard({ user, onLogout, onUnauthorized }: Props) {
   useEffect(() => {
     load()
   }, [load])
+
+  const loadPending = useCallback(() => {
+    api.requestsPending().then((r) => setPendingRequests(r.pending)).catch(() => {})
+  }, [])
+  useEffect(() => {
+    loadPending()
+  }, [loadPending])
 
   const q = query.trim().toLowerCase()
   const visible = useMemo(
@@ -102,6 +112,9 @@ export function Dashboard({ user, onLogout, onUnauthorized }: Props) {
           Las Moscas<span>Stream</span> <small>Panel</small>
         </h1>
         <div className="topbar-right">
+          <button className="btn ghost" onClick={() => setShowRequests(true)}>
+            📨 Pedidos{pendingRequests > 0 ? ` (${pendingRequests})` : ''}
+          </button>
           <span className="muted">👤 {user}</span>
           <button className="btn ghost" onClick={onLogout}>
             Salir
@@ -254,6 +267,20 @@ export function Dashboard({ user, onLogout, onUnauthorized }: Props) {
           onClose={() => setEditing(null)}
           onSaved={onSaved}
           onError={handleError}
+        />
+      )}
+
+      {showRequests && (
+        <Requests
+          onClose={() => {
+            setShowRequests(false)
+            loadPending()
+          }}
+          onError={handleError}
+          onAdd={() => {
+            setShowRequests(false)
+            setEditing('new')
+          }}
         />
       )}
 

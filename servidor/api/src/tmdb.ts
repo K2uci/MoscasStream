@@ -163,12 +163,53 @@ interface Details {
   original_language?: string;
   origin_country?: string[];
   external_ids?: { imdb_id?: string | null };
+  runtime?: number | null;
+  episode_run_time?: number[];
+  last_episode_to_air?: { runtime?: number | null } | null;
+  videos?: { results?: { key: string; site: string; type: string; official?: boolean; iso_639_1?: string }[] };
+}
+
+/** Elige el mejor tráiler de YouTube: oficial, en el idioma pedido primero y luego inglés. */
+function pickTrailer(d: Details, language: string): string | null {
+  const lang = language.slice(0, 2);
+  const list = (d.videos?.results ?? []).filter((v) => v.site === 'YouTube' && /^[\w-]{6,20}$/.test(v.key));
+  const score = (v: { type: string; official?: boolean; iso_639_1?: string }) =>
+    (v.type === 'Trailer' ? 4 : v.type === 'Teaser' ? 1 : 0) + (v.official ? 1 : 0) + (v.iso_639_1 === lang ? 2 : v.iso_639_1 === 'en' ? 1 : 0);
+  const best = list.filter((v) => score(v) > 0).sort((a, b) => score(b) - score(a))[0];
+  return best ? `https://www.youtube.com/watch?v=${best.key}` : null;
+}
+
+/** Duración en minutos: película = total; serie = duración típica de un capítulo. */
+function runtimeOf(kind: TmdbKind, d: Details): number | undefined {
+  const m = kind === 'movie' ? d.runtime : d.episode_run_time?.find((x) => x > 0) ?? d.last_episode_to_air?.runtime;
+  return m && m > 0 ? Math.round(m) : undefined;
+}
+
+/**
+ * Solo duración y tráiler (una petición). Lo usa el relleno masivo del catálogo.
+ * Devuelve null si el título ya no existe en TMDb.
+ */
+export async function extras(kind: TmdbKind, id: number, language = config.tmdbLanguage) {
+  try {
+    const d = await tmdb<Details>(`/${kind}/${id}`, {
+      language,
+      append_to_response: 'videos',
+      include_video_language: `${language.slice(0, 2)},en,null`,
+    });
+    return { runtime: runtimeOf(kind, d) ?? null, trailerUrl: pickTrailer(d, language) };
+  } catch (e) {
+    if (e instanceof TmdbError && e.status === 404) return null;
+    throw e;
+  }
 }
 
 /** Datos completos listos para rellenar el formulario del panel. */
 export async function details(kind: TmdbKind, id: number, language = config.tmdbLanguage) {
-  const extra = kind === 'tv' ? { append_to_response: 'external_ids' } : {};
-  const d = await tmdb<Details>(`/${kind}/${id}`, { language, ...extra });
+  const d = await tmdb<Details>(`/${kind}/${id}`, {
+    language,
+    append_to_response: kind === 'tv' ? 'external_ids,videos' : 'videos',
+    include_video_language: `${language.slice(0, 2)},en,null`,
+  });
 
   // Igual que el script: si no hay descripción en el idioma pedido, se usa la de inglés.
   let synopsis = d.overview?.trim() ?? '';
@@ -201,6 +242,8 @@ export async function details(kind: TmdbKind, id: number, language = config.tmdb
     posterPreview: d.poster_path ? `${IMG}/w342${d.poster_path}` : null,
     backdropPreview: d.backdrop_path ? `${IMG}/w780${d.backdrop_path}` : null,
     imdbUrl: imdb ? `https://www.imdb.com/title/${imdb}` : null,
+    runtime: runtimeOf(kind, d),
+    trailerUrl: pickTrailer(d, language),
   };
 }
 

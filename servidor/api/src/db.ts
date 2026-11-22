@@ -56,6 +56,24 @@ CREATE TABLE IF NOT EXISTS migrations (name TEXT PRIMARY KEY, applied_at TIMESTA
 
 -- Sincronización incremental: índice por versión y registro de títulos borrados (para que las apps los quiten).
 CREATE INDEX IF NOT EXISTS media_updated_idx ON media (updated_at);
+
+-- Duración (minutos) y tráiler (enlace de YouTube). extras_at marca los títulos ya revisados por el relleno masivo.
+ALTER TABLE media ADD COLUMN IF NOT EXISTS runtime INT CHECK (runtime > 0);
+ALTER TABLE media ADD COLUMN IF NOT EXISTS trailer_url TEXT;
+ALTER TABLE media ADD COLUMN IF NOT EXISTS extras_at TIMESTAMPTZ;
+
+-- Pedidos de títulos que hacen los usuarios desde la app.
+CREATE TABLE IF NOT EXISTS title_requests (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title      TEXT NOT NULL,
+  type       TEXT,
+  note       TEXT NOT NULL DEFAULT '',
+  requester  TEXT NOT NULL DEFAULT '',
+  device_id  TEXT NOT NULL DEFAULT '',
+  status     TEXT NOT NULL DEFAULT 'pendiente' CHECK (status IN ('pendiente','agregado','descartado')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS title_requests_status_idx ON title_requests (status, created_at DESC);
 CREATE TABLE IF NOT EXISTS media_tombstones (id UUID PRIMARY KEY, deleted_at TIMESTAMPTZ NOT NULL DEFAULT now());
 `;
 

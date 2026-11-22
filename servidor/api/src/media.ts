@@ -24,6 +24,8 @@ interface MediaRow {
   tmdb_ref: string | null;
   added_at: Date;
   updated_at: Date;
+  runtime: number | null;
+  trailer_url: string | null;
   ver?: string;
 }
 
@@ -44,6 +46,8 @@ function toItem(r: MediaRow) {
     seasons: r.seasons ?? undefined,
     available: r.available,
     tmdbRef: r.tmdb_ref ?? undefined,
+    runtime: r.runtime ?? undefined,
+    trailerUrl: r.trailer_url ?? undefined,
     addedAt: r.added_at.toISOString(),
     updatedAt: r.updated_at.toISOString(),
   };
@@ -138,6 +142,11 @@ const mediaSchema = z.object({
   posterTmdb: z.preprocess(emptyToUndef, z.string().refine(isTmdbImagePath, 'imagen de TMDb no válida').optional()),
   backdropTmdb: z.preprocess(emptyToUndef, z.string().refine(isTmdbImagePath, 'imagen de TMDb no válida').optional()),
   tmdbRef: z.preprocess(emptyToUndef, z.string().regex(/^(movie|tv):\d+$/).optional()),
+  runtime: z.preprocess(emptyToUndef, z.coerce.number().int().min(1).max(2000).optional()),
+  trailerUrl: z.preprocess(
+    emptyToUndef,
+    z.string().max(300).regex(/^https:\/\/(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]{6,20}([&?][\w=&%-]*)?$/, 'El tráiler debe ser un enlace de YouTube').optional(),
+  ),
 });
 
 type Files = { poster?: Express.Multer.File[]; backdrop?: Express.Multer.File[] };
@@ -218,9 +227,9 @@ adminRouter.post('/media', imageFields, async (req, res) => {
   const [poster, backdrop] = await newImages(files, d);
 
   const { rows } = await pool.query<MediaRow>(
-    `INSERT INTO media (title, type, rating, synopsis, year, genres, episodes, seasons, available, poster_path, backdrop_path, tmdb_ref)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-    [d.title, d.type, d.rating, d.synopsis, d.year ?? null, d.genres, d.episodes ?? null, d.seasons ?? null, d.available, poster, backdrop, d.tmdbRef ?? null],
+    `INSERT INTO media (title, type, rating, synopsis, year, genres, episodes, seasons, available, poster_path, backdrop_path, tmdb_ref, runtime, trailer_url, extras_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,now()) RETURNING *`,
+    [d.title, d.type, d.rating, d.synopsis, d.year ?? null, d.genres, d.episodes ?? null, d.seasons ?? null, d.available, poster, backdrop, d.tmdbRef ?? null, d.runtime ?? null, d.trailerUrl ?? null],
   );
   await touchCatalog();
   res.status(201).json(toItem(rows[0]));
@@ -262,9 +271,10 @@ adminRouter.put('/media/:id', imageFields, async (req, res) => {
 
   const { rows } = await pool.query<MediaRow>(
     `UPDATE media SET title=$2, type=$3, rating=$4, synopsis=$5, year=$6, genres=$7, episodes=$8, seasons=$9,
-       available=$10, poster_path=$11, backdrop_path=$12, tmdb_ref=COALESCE($13, tmdb_ref), updated_at=now()
+       available=$10, poster_path=$11, backdrop_path=$12, tmdb_ref=COALESCE($13, tmdb_ref),
+       runtime=$14, trailer_url=$15, extras_at=COALESCE(extras_at, now()), updated_at=now()
      WHERE id=$1 RETURNING *`,
-    [row.id, d.title, d.type, d.rating, d.synopsis, d.year ?? null, d.genres, d.episodes ?? null, d.seasons ?? null, d.available, poster, backdrop, d.tmdbRef ?? null],
+    [row.id, d.title, d.type, d.rating, d.synopsis, d.year ?? null, d.genres, d.episodes ?? null, d.seasons ?? null, d.available, poster, backdrop, d.tmdbRef ?? null, d.runtime ?? null, d.trailerUrl ?? null],
   );
   await Promise.all(toDelete.map(deleteImage));
   await touchCatalog();
