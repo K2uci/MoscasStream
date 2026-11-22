@@ -21,6 +21,8 @@ const isWeb = Platform.OS === 'web';
 export interface CachedCatalog {
   catalog: Catalog;
   etag: string | null;
+  /** Cursor de sincronización incremental (hasta dónde del servidor ya se tiene). null = sincronizar desde cero. */
+  cursor?: string | null;
   savedAt: string;
 }
 

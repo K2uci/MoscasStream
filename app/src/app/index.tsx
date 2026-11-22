@@ -44,7 +44,7 @@ type Entry = { kind: 'row'; key: string; row: Row } | { kind: 'grid'; key: strin
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { catalog, status, refreshing, refresh, ready, lastSync } = useCatalog();
+  const { catalog, status, refreshing, refresh, ready, lastSync, syncProgress } = useCatalog();
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   // La búsqueda sobre miles de títulos no bloquea el teclado.
@@ -155,6 +155,11 @@ export default function Dashboard() {
               clearButtonMode="while-editing"
             />
           </View>
+          {syncProgress && (
+            <Text style={styles.syncing}>
+              Descargando catálogo… {syncProgress.loaded} de {syncProgress.total}
+            </Text>
+          )}
           <SectionTiles items={catalog.items} active={filter} onChange={setFilter} />
           <View style={{ height: spacing.xl }} />
           {showGrid ? (
@@ -182,7 +187,7 @@ export default function Dashboard() {
     ) : !catalog ? (
       <Message
         title="Aún no hay catálogo"
-        text="Conéctate a la red local donde está el servidor y desliza hacia abajo para descargar el catálogo."
+        text="Sin conexión por ahora. Cuando tengas internet el catálogo se descarga solo, y queda guardado en tu teléfono para verlo sin conexión. También puedes deslizar hacia abajo para reintentar."
         icon="📡"
       />
     ) : (
@@ -246,6 +251,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     fontSize: 15,
   },
+  syncing: { color: colors.accent, fontSize: 12, fontWeight: '700', paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
   gridTitle: { color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md, paddingHorizontal: spacing.lg },
   gridCount: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
   gridRow: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.lg, marginBottom: spacing.lg },

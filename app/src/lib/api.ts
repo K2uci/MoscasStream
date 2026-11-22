@@ -103,31 +103,93 @@ export async function fetchCatalog(serverUrl: string, etag?: string | null, time
   }
 }
 
+function normalizeItem(i: MediaItem): MediaItem {
+  return {
+    id: String(i.id),
+    title: i.title,
+    type: i.type,
+    posterUrl: i.posterUrl,
+    thumbUrl: i.thumbUrl,
+    backdropUrl: i.backdropUrl,
+    rating: Number(i.rating) || 0,
+    synopsis: i.synopsis ?? '',
+    year: i.year,
+    genres: Array.isArray(i.genres) ? i.genres : [],
+    episodes: i.episodes,
+    seasons: i.seasons,
+    available: i.available !== false,
+    addedAt: i.addedAt ?? new Date(0).toISOString(),
+  };
+}
+
 function parseCatalog(data: unknown): Catalog {
   const obj = data as Partial<Catalog> | MediaItem[];
   const items = Array.isArray(obj) ? obj : obj?.items;
   if (!Array.isArray(items)) throw new Error('Respuesta inválida del servidor');
   return {
     updatedAt: (!Array.isArray(obj) && obj.updatedAt) || new Date().toISOString(),
-    items: items
-      .filter((i) => i && i.id && i.title)
-      .map((i) => ({
-        id: String(i.id),
-        title: i.title,
-        type: i.type,
-        posterUrl: i.posterUrl,
-        thumbUrl: i.thumbUrl,
-        backdropUrl: i.backdropUrl,
-        rating: Number(i.rating) || 0,
-        synopsis: i.synopsis ?? '',
-        year: i.year,
-        genres: Array.isArray(i.genres) ? i.genres : [],
-        episodes: i.episodes,
-        seasons: i.seasons,
-        available: i.available !== false,
-        addedAt: i.addedAt ?? new Date(0).toISOString(),
-      })),
+    items: items.filter((i) => i && i.id && i.title).map(normalizeItem),
   };
+}
+
+/** Cursor inicial: "desde el principio". */
+export const INITIAL_CURSOR = '0:00000000-0000-0000-0000-000000000000';
+
+export interface CatalogPage {
+  items: MediaItem[];
+  /** Ids borrados en el servidor desde la sincronización anterior (solo llegan en la última página). */
+  deleted: string[];
+  /** Cursor para pedir lo siguiente; se guarda al terminar cada página. */
+  next: string;
+  hasMore: boolean;
+  total: number;
+  serverTime: string;
+}
+
+/** Un servidor anterior (sin paginación) responde con el catálogo completo: se trata como "reemplazar todo". */
+export type PageResult = { kind: 'page'; page: CatalogPage } | { kind: 'full'; catalog: Catalog };
+
+/**
+ * Pide una página del catálogo. Cada página son pocos cientos de títulos, así que con mala conexión
+ * llega por partes y lo ya descargado no se pierde si se corta.
+ */
+export async function fetchCatalogPage(
+  serverUrl: string,
+  opts: { after: string; since: string; limit: number },
+  timeoutMs = 45000,
+): Promise<PageResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const qs = new URLSearchParams({ limit: String(opts.limit), after: opts.after, since: opts.since });
+    const res = await fetch(`${serverUrl}/api/catalog?${qs}`, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) throw new Error(`El servidor respondió ${res.status}`);
+    const data = (await res.json()) as Partial<CatalogPage> & { items?: MediaItem[]; updatedAt?: string };
+    if (typeof data.hasMore !== 'boolean' || typeof data.next !== 'string') {
+      return { kind: 'full', catalog: parseCatalog(data) };
+    }
+    if (!Array.isArray(data.items)) throw new Error('Respuesta inválida del servidor');
+    return {
+      kind: 'page',
+      page: {
+        items: data.items.filter((i) => i && i.id && i.title).map(normalizeItem),
+        deleted: Array.isArray(data.deleted) ? data.deleted.map(String) : [],
+        next: data.next,
+        hasMore: data.hasMore,
+        total: Number(data.total) || 0,
+        serverTime: data.serverTime ?? new Date().toISOString(),
+      },
+    };
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') throw new Error('El servidor no respondió a tiempo');
+    if (e instanceof TypeError) throw new Error('No se pudo conectar con el servidor');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** Lee las dos direcciones. Migración: la dirección única de versiones anteriores pasa a ser la Local. */
