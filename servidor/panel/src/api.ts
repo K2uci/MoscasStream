@@ -117,6 +117,8 @@ export const api = {
   setRequestStatus: (id: string, status: TitleRequest['status']) =>
     request<TitleRequest>(`/api/admin/requests/${id}`, json('PATCH', { status })),
   removeRequest: (id: string) => request<void>(`/api/admin/requests/${id}`, { method: 'DELETE' }),
+  pushStatus: () => request<{ devices: number }>('/api/admin/push'),
+  pushTest: () => request<{ sent: number; failed: number; removed: number }>('/api/admin/push/test', { method: 'POST' }),
   tmdbStatus: () => request<{ enabled: boolean; language: string }>('/api/admin/tmdb/status'),
   tmdbSearch: (q: string, year?: string, language?: string) => {
     const p = new URLSearchParams({ q })

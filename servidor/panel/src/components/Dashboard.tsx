@@ -112,6 +112,22 @@ export function Dashboard({ user, onLogout, onUnauthorized }: Props) {
           Las Moscas<span>Stream</span> <small>Panel</small>
         </h1>
         <div className="topbar-right">
+          <button
+            className="btn ghost"
+            title="Envía una notificación de prueba a todos los teléfonos registrados"
+            onClick={async () => {
+              try {
+                const { devices } = await api.pushStatus()
+                if (devices === 0) return notify('Aún no hay teléfonos registrados. Abre la app nueva con internet.', true)
+                const r = await api.pushTest()
+                notify(`Notificación enviada a ${r.sent} de ${devices} teléfono(s)${r.failed ? ` · ${r.failed} fallaron` : ''}`, r.sent === 0)
+              } catch (e) {
+                handleError(e)
+              }
+            }}
+          >
+            🔔 Probar
+          </button>
           <button className="btn ghost" onClick={() => setShowRequests(true)}>
             📨 Pedidos{pendingRequests > 0 ? ` (${pendingRequests})` : ''}
           </button>
