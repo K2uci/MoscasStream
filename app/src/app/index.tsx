@@ -212,11 +212,6 @@ export default function Dashboard() {
           <Logo />
         </Pressable>
         <View style={styles.headerRight}>
-          {catalog && (
-            <Pressable onPress={() => setRequest({ open: true, title: '' })} style={styles.askBtn} hitSlop={6} accessibilityLabel="Pedir un título">
-              <Text style={styles.askText}>📨 Pedir</Text>
-            </Pressable>
-          )}
           <StatusPill status={status} />
         </View>
       </View>
@@ -340,7 +335,7 @@ export default function Dashboard() {
     ) : null;
 
   return (
-    <>
+    <View style={styles.screen}>
       <FlatList
         style={styles.screen}
         data={entries}
@@ -355,9 +350,20 @@ export default function Dashboard() {
         maxToRenderPerBatch={5}
         windowSize={7}
       />
+      {/* Botón flotante "+" para pedir un título (esquina inferior derecha) */}
+      {catalog && !showFilters && !request.open && (
+        <Pressable
+          onPress={() => setRequest({ open: true, title: '' })}
+          style={({ pressed }) => [styles.fab, { bottom: insets.bottom + spacing.lg, opacity: pressed ? 0.85 : 1 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Pedir una película o serie"
+        >
+          <Text style={styles.fabPlus}>+</Text>
+        </Pressable>
+      )}
       <FilterSheet visible={showFilters} items={catalog?.items ?? []} value={adv} onApply={setAdv} onClose={() => setShowFilters(false)} />
       <RequestModal visible={request.open} initialTitle={request.title} onClose={() => setRequest({ open: false, title: '' })} />
-    </>
+    </View>
   );
 }
 
@@ -381,15 +387,22 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  askBtn: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: colors.surface,
+  fab: {
+    position: 'absolute',
+    right: spacing.lg,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
   },
-  askText: { color: colors.text, fontSize: 12, fontWeight: '700' },
+  fabPlus: { color: colors.bg, fontSize: 34, fontWeight: '500', lineHeight: 38, marginTop: -2 },
   searchWrap: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, marginBottom: spacing.lg },
   search: {
     backgroundColor: colors.surface,
