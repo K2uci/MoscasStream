@@ -44,3 +44,14 @@ Los precios y límites gratuitos cambian: confírmalos en cada servicio al regis
   npm run update -- "descripción del cambio"
   ```
   Solo hace falta un APK nuevo si cambias módulos nativos o la versión de Expo (`runtimeVersion` = versión de `app.json`).
+
+## Notificaciones push (como un mensaje nuevo)
+
+El servidor avisa a los teléfonos cuando el administrador agrega títulos (panel o importación). Usa Expo Push + Firebase (FCM):
+
+1. **Firebase** (gratis): proyecto `moscasstream`, app Android `com.moscasstream.app`. Descarga `google-services.json` y déjalo en `app/` (está en `.gitignore`; `app.config.js` lo activa solo si existe).
+2. **Clave de cuenta de servicio**: Firebase → Configuración del proyecto → Cuentas de servicio → *Generar nueva clave privada*.
+   Súbela a EAS: en `app`, `npx eas-cli credentials` → Android → production → *Google Service Account* → *Manage your Google Service Account Key for Push Notifications (FCM V1)* → *Upload*.
+   **No subas ese archivo a git ni lo compartas.**
+3. Compila el APK (`npm run build:apk`) e instálalo: la app registra su token en `POST /api/devices`.
+4. Prueba desde el panel autenticado: `POST /api/admin/push/test` envía una notificación de prueba a todos los teléfonos registrados.
