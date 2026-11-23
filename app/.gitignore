@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Configuración de Firebase (se sube a EAS Build desde esta carpeta, no a git)
+google-services.json

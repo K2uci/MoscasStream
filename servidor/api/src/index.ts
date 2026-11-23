@@ -10,6 +10,7 @@ import { storage } from './storage.js';
 import { importText, runImport } from './importacion/importador.js';
 import { backfillStatus, runBackfill } from './importacion/relleno.js';
 import { adminRouter, catalogRouter } from './media.js';
+import { adminPushRouter, devicesRouter } from './push.js';
 import { adminRequestsRouter, publicRequestsRouter } from './requests.js';
 import { TmdbError, tmdbRouter } from './tmdb.js';
 
@@ -40,6 +41,7 @@ app.get('/api/health', async (_req, res) => {
 });
 app.use('/api/catalog', publicCors, catalogRouter);
 app.use('/api/requests', publicCors, publicRequestsRouter);
+app.use('/api/devices', publicCors, devicesRouter);
 if (storage.kind === 'local') {
   app.use('/uploads', publicCors, express.static(config.uploadDir, { maxAge: '30d', immutable: true }), (_req, res) => {
     res.status(404).end();
@@ -75,6 +77,7 @@ app.post('/api/admin/backfill', requireAuth, (_req, res) => {
   res.status(202).json({ ok: true });
 });
 app.use('/api/admin/requests', adminRequestsRouter);
+app.use('/api/admin/push', adminPushRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuth } from './auth.js';
 import { pool, touchCatalog } from './db.js';
 import { deleteImage, saveImage, thumbPathOf, upload } from './images.js';
+import { notifyNewTitle } from './push.js';
 import { publicImageUrl } from './storage.js';
 import { downloadImage, isTmdbImagePath } from './tmdb.js';
 
@@ -232,6 +233,7 @@ adminRouter.post('/media', imageFields, async (req, res) => {
     [d.title, d.type, d.rating, d.synopsis, d.year ?? null, d.genres, d.episodes ?? null, d.seasons ?? null, d.available, poster, backdrop, d.tmdbRef ?? null, d.runtime ?? null, d.trailerUrl ?? null],
   );
   await touchCatalog();
+  if (rows[0].available) notifyNewTitle(rows[0].title); // aviso push a los teléfonos (agrupado)
   res.status(201).json(toItem(rows[0]));
 });
 

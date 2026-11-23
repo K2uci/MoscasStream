@@ -7,6 +7,7 @@ import path from 'node:path';
 import { config } from '../config.js';
 import { pool, touchCatalog } from '../db.js';
 import { deleteImage, saveImage } from '../images.js';
+import { notifyNewTitle } from '../push.js';
 import { details, downloadImage, searchKind, TmdbError } from '../tmdb.js';
 import { normalize, parseListing, type MediaType, type ParsedTitle } from './parser.js';
 
@@ -145,6 +146,7 @@ async function importOne(item: ParsedTitle, known: Known): Promise<'added' | 'ex
     await Promise.all([deleteImage(poster), deleteImage(backdrop)]);
     throw e;
   }
+  notifyNewTitle(d.title || item.title);
   known.importKeys.add(item.key);
   known.tmdbRefs.add(d.ref);
   known.titles.add(`${match.kind}:${normalize(d.title)}`);

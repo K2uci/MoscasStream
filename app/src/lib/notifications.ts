@@ -5,16 +5,20 @@
 // Los módulos nativos solo existen en el APK compilado con ellos: en un APK anterior todo esto se desactiva
 // solo (los require están protegidos) y la app sigue funcionando; las novedades se ven dentro de la app.
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { AppState, Platform } from 'react-native';
 import type { MediaItem } from '../types';
 import { loadServerUrl } from './api';
 import { latestAdded, loadMarks, newerThan, saveNotified } from './novelties';
+import { getDeviceId } from './requests';
 import { readCachedCatalog, writeCachedCatalog } from './storage';
 import { syncCatalog } from './sync';
 
 export const NOVELTY_TASK = 'moscas-novedades';
 const CHANNEL = 'novedades';
 const K_ASKED = 'moscas:notifAsked';
+/** Marca: este teléfono quedó registrado para recibir push del servidor (entonces no se duplican avisos locales). */
+const K_PUSH = 'moscas:pushOk';
 
 type NotificationsModule = typeof import('expo-notifications');
 type TaskManagerModule = typeof import('expo-task-manager');
@@ -84,6 +88,11 @@ async function checkInBackground() {
 
   const fresh = newerThan(final.items.values(), mark);
   if (!fresh.length || AppState.currentState === 'active') return; // con la app abierta, el aviso va dentro de la app
+  // Con push del servidor activo, el aviso ya llegó (o llegará) por ahí: aquí solo se actualiza el catálogo.
+  if (await AsyncStorage.getItem(K_PUSH)) {
+    await saveNotified(latestAdded(fresh));
+    return;
+  }
   await notifyNewTitles(fresh);
   await saveNotified(latestAdded(fresh));
 }
@@ -102,6 +111,31 @@ if (TaskManager && BackgroundTask) {
     });
   } catch (e) {
     console.warn('[notificaciones] no se pudo definir la tarea', e);
+  }
+}
+
+/**
+ * Registra este teléfono en el servidor para recibir notificaciones push (el aviso llega al instante, como un mensaje).
+ * Necesita un APK compilado con Firebase (google-services.json); si no, falla sin errores y quedan los avisos locales.
+ */
+async function registerPush(): Promise<boolean> {
+  if (!Notifications) return false;
+  try {
+    const projectId = (Constants.expoConfig?.extra?.eas as { projectId?: string } | undefined)?.projectId;
+    const { data: token } = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+    const url = await loadServerUrl();
+    if (!url) return false;
+    const res = await fetch(`${url}/api/devices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ token, deviceId: await getDeviceId() }),
+    });
+    if (!res.ok) return false;
+    await AsyncStorage.setItem(K_PUSH, '1');
+    return true;
+  } catch {
+    await AsyncStorage.removeItem(K_PUSH).catch(() => {});
+    return false;
   }
 }
 
@@ -135,6 +169,8 @@ export async function enableNoveltyNotifications(): Promise<boolean> {
       granted = (await Notifications.requestPermissionsAsync()).granted;
     }
     if (!granted) return false;
+
+    void registerPush(); // push instantáneo del servidor (si este APK trae Firebase)
 
     if (!(await TaskManager.isTaskRegisteredAsync(NOVELTY_TASK))) {
       await BackgroundTask.registerTaskAsync(NOVELTY_TASK, { minimumInterval: 30 });

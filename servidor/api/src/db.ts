@@ -74,6 +74,15 @@ CREATE TABLE IF NOT EXISTS title_requests (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS title_requests_status_idx ON title_requests (status, created_at DESC);
+
+-- Teléfonos registrados para recibir notificaciones push (token de Expo).
+CREATE TABLE IF NOT EXISTS push_tokens (
+  token      TEXT PRIMARY KEY,
+  device_id  TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS push_tokens_device_idx ON push_tokens (device_id);
 CREATE TABLE IF NOT EXISTS media_tombstones (id UUID PRIMARY KEY, deleted_at TIMESTAMPTZ NOT NULL DEFAULT now());
 `;
 
