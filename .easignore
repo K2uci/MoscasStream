@@ -1,0 +1,19 @@
+# EAS Build solo necesita la app. Con este archivo, EAS ignora .gitignore y usa SOLO estas reglas,
+# así que aquí también van las carpetas generadas (node_modules, dist…).
+
+# Fuera de la app: servidor, herramientas locales (incluye un perfil de Chrome con datos de sesión) y copias
+servidor/
+tools/
+*.rar
+*.zip
+
+# Generados / dependencias
+**/node_modules/
+**/dist/
+**/.expo/
+**/.git-backup/
+app/.claude/
+.git-backup/
+.claude/
+**/.env
+**/.env.*
